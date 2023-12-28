@@ -19,6 +19,8 @@
 #include "node_version.h"
 #include "v8.h"
 
+#include <math.h>
+#include <nan.h>
 #include <algorithm>
 #include <stdarg.h>
 #include <stdint.h>
@@ -29,7 +31,6 @@
 namespace {
 
 using v8::Exception;
-using v8::Handle;
 using v8::Local;
 using v8::Object;
 using v8::String;
@@ -87,7 +88,7 @@ using v8::Value;
 # define UNI_ESCAPABLE_HANDLESCOPE()                                          \
     v8::HandleScope handle_scope
 # define UNI_FUNCTION_CALLBACK(name)                                          \
-    v8::Handle<v8::Value> name(const v8::Arguments& args)
+    v8::Local<v8::Value> name(const v8::Arguments& args)
 # define UNI_HANDLESCOPE()                                                    \
     v8::HandleScope handle_scope
 # define UNI_INTEGER_NEW(value)                                               \
@@ -138,7 +139,8 @@ template <class Derived> struct UnaryAction {
     } else if (node::Buffer::HasInstance(args[0])) {
       // First argument is the target buffer.
       args_start = 1;
-      target = args[0]->ToObject();
+//      target = args[0]->ToObject();
+      target = Nan::To<Object>(args[0]).ToLocalChecked();
     } else {
       UNI_THROW_EXCEPTION(Exception::TypeError,
                           "Argument should be a buffer object.");
@@ -166,7 +168,8 @@ template <class Derived> struct BinaryAction {
     } else if (node::Buffer::HasInstance(args[0])) {
       // First argument is the target buffer.
       args_start = 1;
-      target = args[0]->ToObject();
+//      target = args[0]->ToObject();
+      target = Nan::To<Object>(args[0]).ToLocalChecked();
     } else {
       UNI_THROW_EXCEPTION(Exception::TypeError,
                           "Argument should be a buffer object.");
@@ -174,7 +177,7 @@ template <class Derived> struct BinaryAction {
     }
 
     if (args[args_start]->IsString()) {
-      String::Utf8Value s(args[args_start]);
+      Nan::Utf8String s(args[args_start]);
       UNI_ESCAPE(static_cast<Derived*>(this)->apply(
           target,
           (const uint8_t*) *s,
@@ -184,7 +187,8 @@ template <class Derived> struct BinaryAction {
     }
 
     if (node::Buffer::HasInstance(args[args_start])) {
-      Local<Object> other = args[args_start]->ToObject();
+//      Local<Object> other = args[args_start]->ToObject();
+      Local<Object> other = Nan::To<Object>(args[args_start]).ToLocalChecked();
       UNI_ESCAPE(static_cast<Derived*>(this)->apply(
           target,
           (const uint8_t*) node::Buffer::Data(other),
@@ -253,17 +257,19 @@ struct FillAction: UnaryAction<FillAction> {
                      UNI_CONST_ARGUMENTS(args),
                      uint32_t args_start) {
     if (args[args_start]->IsInt32()) {
-      int c = args[args_start]->Int32Value();
+//      int c = args[args_start]->Int32Value();
+      int c = args[args_start]->Int32Value(Nan::GetCurrentContext()).FromJust();
       return clear(buffer, c);
     }
 
     if (args[args_start]->IsString()) {
-      String::Utf8Value s(args[args_start]);
+      Nan::Utf8String s(args[args_start]);
       return fill(buffer, *s, s.length());
     }
 
     if (node::Buffer::HasInstance(args[args_start])) {
-      Local<Object> other = args[args_start]->ToObject();
+//      Local<Object> other = args[args_start]->ToObject();
+      Local<Object> other = Nan::To<Object>(args[args_start]).ToLocalChecked();
       size_t length = node::Buffer::Length(other);
       uint8_t* data = (uint8_t*) node::Buffer::Data(other);
       return fill(buffer, data, length);
@@ -326,7 +332,8 @@ struct IndexOfAction: BinaryAction<IndexOfAction> {
     const uint8_t* data = (const uint8_t*) node::Buffer::Data(buffer);
     const size_t size = node::Buffer::Length(buffer);
 
-    int32_t start = args[args_start + 1]->Int32Value();
+//    int32_t start = args[args_start + 1]->Int32Value();
+    int32_t start = args[args_start + 1]->Int32Value(Nan::GetCurrentContext()).FromJust();
 
     if (start < 0)
       start = size - std::min<size_t>(size, -start);
@@ -438,6 +445,8 @@ V(Reverse)
 V(ToHex)
 #undef V
 
+/**
+
 UNI_FUNCTION_CALLBACK(Concat) {
   UNI_HANDLESCOPE();
 
@@ -446,10 +455,12 @@ UNI_FUNCTION_CALLBACK(Concat) {
     Local<Value> arg = args[index];
     if (arg->IsString()) {
       // Utf8Length() because we need the length in bytes, not characters
-      size += arg->ToString()->Utf8Length();
+//      size += arg->ToString()->Utf8Length();
+      size += arg->ToString(Nan::GetCurrentContext()).FromMaybe(v8::Local<v8::String>())->Utf8Length;
     }
     else if (node::Buffer::HasInstance(arg)) {
-      size += node::Buffer::Length(arg->ToObject());
+//      size += node::Buffer::Length(arg->ToObject());
+      size += node::Buffer::Length(Nan::To<Object>(args[0]).ToLocalChecked());
     }
     else {
       char errmsg[256];
@@ -467,12 +478,13 @@ UNI_FUNCTION_CALLBACK(Concat) {
   for (int index = 0, length = args.Length(); index < length; ++index) {
     Local<Value> arg = args[index];
     if (arg->IsString()) {
-      String::Utf8Value v(arg);
+      Nan::Utf8String v(arg);
       memcpy(s, *v, v.length());
       s += v.length();
     }
     else if (node::Buffer::HasInstance(arg)) {
-      Local<Object> b = arg->ToObject();
+//      Local<Object> b = arg->ToObject();
+      Local<Object> b = Nan::To<Object>(arg).ToLocalChecked();
       const uint8_t* data = (const uint8_t*) node::Buffer::Data(b);
       size_t length = node::Buffer::Length(b);
       memcpy(s, data, length);
@@ -488,11 +500,12 @@ UNI_FUNCTION_CALLBACK(Concat) {
 
   UNI_RETURN(buffer);
 }
+**/
 
-void RegisterModule(Handle<Object> target) {
+void RegisterModule(Local<Object> target) {
   NODE_SET_METHOD(target, "clear", Clear);
   NODE_SET_METHOD(target, "compare", Compare);
-  NODE_SET_METHOD(target, "concat", Concat);
+//  NODE_SET_METHOD(target, "concat", Concat);
   NODE_SET_METHOD(target, "equals", Equals);
   NODE_SET_METHOD(target, "fill", Fill);
   NODE_SET_METHOD(target, "fromHex", FromHex);

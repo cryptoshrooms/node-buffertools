@@ -16,7 +16,11 @@
   'targets': [
     {
       'target_name': 'buffertools',
-      'sources': [ 'buffertools.cc' ]
+      'sources': [ 'buffertools.cc' ],
+
+      'include_dirs': [
+        "<!(node -e \"require('nan')\")"
+        ]
     }
   ]
 }
