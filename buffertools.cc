@@ -75,7 +75,7 @@ using v8::Value;
     } while (0)
 # define UNI_THROW_EXCEPTION(type, message)                                   \
     args.GetIsolate()->ThrowException(                                        \
-        type(v8::String::NewFromUtf8(args.GetIsolate(), message)));
+        type(v8::String::NewFromUtf8(args.GetIsolate(), message).ToLocalChecked()));
 #else  // NODE_MAJOR_VERSION > 0 || NODE_MINOR_VERSION > 10
 # define UNI_BOOLEAN_NEW(value)                                               \
     v8::Local<v8::Boolean>::New(v8::Boolean::New(value))
